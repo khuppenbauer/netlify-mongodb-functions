@@ -8,30 +8,42 @@ const uri = `${url}?retryWrites=true&writeConcern=majority`;
 const client = new MongoClient(uri);
 
 exports.handler = async (event) => {
-  const body = JSON.parse(event.body);
-  const { collection, query } = body;
-  let items = [];
-  try {
-    await client.connect();
-    const database = client.db(db);
-    const features = database.collection(collection); 
-    const cursor = features.find(query);
-    if ((await cursor.count()) === 0) {
-      return {
-        statusCode: 404,
-    };
+  if (event.httpMethod === 'POST') {
+    const body = JSON.parse(event.body);
+    const { collection, query } = body;
+    let items = [];
+    try {
+      await client.connect();
+      const database = client.db(db);
+      const features = database.collection(collection); 
+      const cursor = features.find(query);
+      if ((await cursor.count()) === 0) {
+        return {
+          statusCode: 404,
+      };
+      }
+      await cursor.forEach(item => items.push(item));
+    } finally {
+      await client.close();
     }
-    await cursor.forEach(item => items.push(item));
-  } finally {
-    await client.close();
+    const res = JSON.stringify(items);
+    const headers = {
+      'Content-Type': 'application/json'
+    }
+    return {
+        statusCode: 200,
+        headers: headers,
+        body: res
+    };
   }
-  const res = JSON.stringify(items);
-  const headers = {
-    'Content-Type': 'application/json'
-  }
-  return {
+  if (event.httpMethod === 'OPTIONS') {
+    return {
       statusCode: 200,
-      headers: headers,
-      body: res
-  };
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, GET, OPTIONS, DELETE, PUT',
+      },
+    };
+  }
+
 };
